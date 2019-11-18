@@ -46,11 +46,6 @@ function interp(e, env)
         return lookup(e.s, env)
     elseif typeof(e) == StringC
         return StringV(e.s)
-    elseif typeof(e) == AppC
-        app = interp(e.f, env)
-        if typeof(app) == PrimOpV
-            app.f()
-        end
     end
 end
 
@@ -80,7 +75,7 @@ end
 
 
 # test cases:
-testEnv = Dict([("x", NumV(2))])
+testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd))])
 @test lookup("x", testEnv) == NumV(2)
 @test_throws ErrorException lookup("y", testEnv)
 
