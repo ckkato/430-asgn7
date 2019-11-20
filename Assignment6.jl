@@ -25,6 +25,12 @@ struct LamC <: ExprC
     body::ExprC
 end
 
+struct IfC <: ExprC
+    cond::ExprC
+    t::ExprC
+    f::ExprC
+end
+
 abstract type Value end
 
 struct PrimOpV <: Value
@@ -37,6 +43,10 @@ end
 
 struct StringV <: Value
     s::String
+end
+
+struct BoolV <: Value
+    b::Bool
 end
 
 struct ClosV <: Value
@@ -57,6 +67,16 @@ function interp(e::ExprC, env::Dict{String, Value})::Value
         return StringV(e.s)
     elseif typeof(e) == LamC
         return ClosV(e.args, e.body, env)
+    elseif typeof(e) == IfC
+        c = interp(e.cond, env)
+        if typeof(c) != BoolV
+            error("RGME: if statement conditional must evaluate to boolean")
+        end
+        if c.b == true
+            return interp(e.t, env)
+        else
+            return interp(e.f, env)
+        end
     elseif typeof(e) == AppC
         func = interp(e.f, env)
         args = Array{Value}(map(x -> interp(x, env), e.args))
@@ -108,7 +128,7 @@ end
 
 
 # test cases:
-testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd))])
+testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd)), ("true", BoolV(true))])
 @test lookup("x", testEnv) == NumV(2)
 @test_throws ErrorException lookup("y", testEnv)
 
@@ -120,9 +140,11 @@ testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd))])
 @test interp(StringC("hi"), testEnv) == StringV("hi")
 @test interp(AppC(IdC("+"), Array{ExprC}([NumC(4), NumC(5)])), testEnv) == NumV(9)
 @test interp(AppC(LamC(["x"], IdC("x")), Array{ExprC}([NumC(4)])), testEnv) == NumV(4)
+@test interp(IfC(IdC("true"), NumC(0), NumC(1)), testEnv) == NumV(0)
 res = interp(LamC(["a", "b"], NumC(2)), testEnv)
 @test typeof(res) == ClosV && res.args == ["a", "b"] && res.body == NumC(2) && res.env == testEnv
 @test_throws ErrorException interp(AppC(NumC(4), Array{ExprC}([])), testEnv)
+@test_throws ErrorException interp(IfC(NumC(0), NumC(0), NumC(1)), testEnv)
 
 @test myadd(Array{Value}([NumV(3), NumV(2)])) == NumV(5)
 @test_throws ErrorException myadd(Array{Value}([]))
