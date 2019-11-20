@@ -57,6 +57,14 @@ function interp(e::ExprC, env::Dict{String, Value})::Value
         return StringV(e.s)
     elseif typeof(e) == LamC
         return ClosV(e.args, e.body, env)
+    elseif typeof(e) == AppC
+        func = interp(e.f, env)
+        args = Array{Value}(map(x -> interp(x, env), e.args))
+        if typeof(func) == PrimOpV
+            return func.f(args)
+        else
+            error("RGME: attempted to apply value")
+        end
     end
 end
 
@@ -91,7 +99,7 @@ testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd))])
 @test interp(NumC(3), testEnv) == NumV(3)
 @test interp(IdC("x"), testEnv) == NumV(2)
 @test interp(StringC("hi"), testEnv) == StringV("hi")
-
+@test interp(AppC(IdC("+"), Array{ExprC}([NumC(4), NumC(5)])), testEnv) == NumV(9)
 res = interp(LamC(["a", "b"], NumC(2)), testEnv)
 @test typeof(res) == ClosV && res.args == ["a", "b"] && res.body == NumC(2) && res.env == testEnv
 
