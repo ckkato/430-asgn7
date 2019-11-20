@@ -62,19 +62,35 @@ function interp(e::ExprC, env::Dict{String, Value})::Value
         args = Array{Value}(map(x -> interp(x, env), e.args))
         if typeof(func) == PrimOpV
             return func.f(args)
+        elseif typeof(func) == ClosV
+            return interp(func.body, bind(func.args, args, env))
         else
             error("RGME: attempted to apply value")
         end
     end
 end
 
-# looks up
+# looks up value in environment
 function lookup(i::String, env::Dict{String, Value})::Value
     if haskey(env, i)
         return get(env, i, -1)
     else
         error("RGME: lookup failed")
     end
+end
+
+# binds values to environment
+function bind(what::Array{String}, values::Array{Value}, env::Dict{String, Value})::Dict{String, Value}
+    if length(what) != length(values)
+        error("RGME: Invalid function arrity")
+    end
+
+    e = env
+    for (index, key) in enumerate(what)
+        e[key] = values[index]
+    end
+
+    return e
 end
 
 # primitive adding function
@@ -96,12 +112,17 @@ testEnv = Dict([("x", NumV(2)), ("+", PrimOpV(myadd))])
 @test lookup("x", testEnv) == NumV(2)
 @test_throws ErrorException lookup("y", testEnv)
 
+@test bind(["a", "b"], Array{Value}([NumV(4), NumV(5)]), Dict{String, Value}()) == Dict([("a", NumV(4)), ("b", NumV(5))])
+@test_throws ErrorException bind(["a"], Array{Value}([]), Dict{String, Value}())
+
 @test interp(NumC(3), testEnv) == NumV(3)
 @test interp(IdC("x"), testEnv) == NumV(2)
 @test interp(StringC("hi"), testEnv) == StringV("hi")
 @test interp(AppC(IdC("+"), Array{ExprC}([NumC(4), NumC(5)])), testEnv) == NumV(9)
+@test interp(AppC(LamC(["x"], IdC("x")), Array{ExprC}([NumC(4)])), testEnv) == NumV(4)
 res = interp(LamC(["a", "b"], NumC(2)), testEnv)
 @test typeof(res) == ClosV && res.args == ["a", "b"] && res.body == NumC(2) && res.env == testEnv
+@test_throws ErrorException interp(AppC(NumC(4), Array{ExprC}([])), testEnv)
 
 @test myadd(Array{Value}([NumV(3), NumV(2)])) == NumV(5)
 @test_throws ErrorException myadd(Array{Value}([]))
